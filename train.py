@@ -1,58 +1,74 @@
 import tensorflow as tf
-import os,io
-from PIL import Image, ImageDraw, ImageFont
-import PIL
-import matplotlib.pyplot as plt
-import cv2
+from mobilenet import MobileNet
+#import MobileNet
+from utils import *
+from config import *
+from utils import *
 
-NUMS_BATCH = 10
-
-IMAGE_W = 32
-IMAGE_H = 32
-IMAGE_C = 3
+import time
+import glob
+import os
 
 
-def read_tfrecord(filename):
-    filename_queue = tf.train.string_input_producer([filename])
-    reader = tf.TFRecordReader()
-    _,serialized_example = reader.read(filename_queue)
-    features = tf.parse_single_example(serialized_example,
-                                       features={
-                                           'image/encoded': tf.FixedLenFeature([],tf.string),
-                                           'image/format': tf.FixedLenFeature((), tf.string, default_value='png'),
-                                           'image/height': tf.FixedLenFeature([], tf.int64),
-                                           'image/width': tf.FixedLenFeature([], tf.int64),
-                                           'image/class/label': tf.FixedLenFeature(
-                                               [], tf.int64, default_value=tf.zeros([], dtype=tf.int64)),
-                                       })
-
-    imagef,labelf,heightf,widthf = features['image/encoded'],features['image/class/label'],features['image/height'],features['image/width']
-
-    image_png = tf.image.decode_png(imagef)
-    label = tf.cast(labelf,tf.int32)
-    return image_png,label
+def train():
+    height = args.height
+    width = args.width
 
 
 
-def test_read_tfrecord(image,label):
-    #test
-    with tf.Session() as sess:
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(sess=sess,coord=coord)
-        for i in range(10):
-            image_d,label_r = sess.run([image,label])
+    if True:
+        #glob_pattern = os.path.join(args.dataset_dir,"*_train.tfrecord")
+        #tfrecords_list = glob.glob(glob_pattern)
+        #filename_queue = tf.train.string_input_producer(tfrecords_list, num_epochs=None)
+        img_batch, label_batch = get_batch("cifar10/cifar10_train.tfrecord", args.batch_size)
 
-            cv2.imshow("this",image_d)
-            cv2.waitKey(2000)
-            print(label_r.shape)
-            '''
-            image_r = tf.reshape(image_r,[IMAGE_H,IMAGE_W,IMAGE_C])
-            plt.imshow(image_r)
-            plt.show()
-            '''
-    #print(image.shape)
+        mobilenet = MobileNet(img_batch,num_classes=args.num_classes)
+        logits = mobilenet.logits
+        pred = mobilenet.predictions
+        testnet = mobilenet.tests
+
+        cross = tf.nn.softmax_cross_entropy_with_logits(labels=label_batch,logits=logits)
+        loss = tf.reduce_mean(cross)
+        # L2 regularization
+        #l2_loss = tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+        total_loss = loss # + l2_loss
+
+
+        # evaluate model, for classification
+        preds = tf.argmax(pred,1)
+        labels = tf.argmax(label_batch, 1)
+        #correct_pred = tf.equal(tf.argmax(pred, 1), tf.cast(label_batch, tf.int64))
+        correct_pred = tf.equal(preds,labels)
+        acc = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+
+        # optimizer
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            train_op = tf.train.AdamOptimizer(learning_rate=0.001, beta1=args.beta1).minimize(total_loss)
+
+        with tf.Session() as sess:
+
+            print("the start run init")
+            sess.run(tf.global_variables_initializer())
+            print("the end  run init")
+
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+            for step in range(10000):
+                start_time = time.time()
+                sess.run(testnet)
+                print("time:%f"%(time.time()-start_time))
+                _,lr = sess.run([train_op,total_loss])
+                print("the loss is %f"%lr)
+                if step % 10 == 0:
+                    _loss, _acc = sess.run([total_loss, acc])
+
+                    print('global_step:{0}, time:{1:.3f}, lr:{2:.8f}, acc:{3:.6f}, loss:{4:.6f}'.format
+                        (step, time.time() - start_time, lr, _acc, _loss))
+            coord.request_stop()
+            coord.join(threads)
 
 if __name__ == "__main__":
-    image,label = read_tfrecord("cifar10/cifar10_train.tfrecord")
-    test_read_tfrecord(image,label)
+    train()
     pass

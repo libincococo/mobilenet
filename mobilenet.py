@@ -88,7 +88,7 @@ class MobileNet(object):
         with tf.variable_scope(self.scope):
             net = conv2d(self.inputs,"conv_1",round(32*self.width_multiplier),
                          filter_size=3,strides=2)
-            self.tests = net
+
             net = bacthnorm(net,"conv_1/bn",is_training=self.is_training)
             net = tf.nn.relu(net,name="conv_1/relu")
 
@@ -97,6 +97,7 @@ class MobileNet(object):
             ###################### b.  MobileNet 核心模块 128输出 卷积步长2 尺寸减半
             net = self._depthwise_separable_conv2d(net, 128, self.width_multiplier,
                                                    "ds_conv_3", downsample=True)  # ->[N, 56, 56, 128]
+
             ###################### c.  MobileNet 核心模块 128输出 卷积步长1 尺寸不变
             net = self._depthwise_separable_conv2d(net, 128, self.width_multiplier,
                                                    "ds_conv_4")  # ->[N, 56, 56, 128]
@@ -130,6 +131,7 @@ class MobileNet(object):
             ###################### m.  MobileNet 核心模块 1024输出 卷积步长1 尺寸不变
             net = self._depthwise_separable_conv2d(net, 1024, self.width_multiplier,
                                                    "ds_conv_14")  # ->[N, 7, 7, 1024]
+            self.tests = net
             net = avg_pool(net,7,"avg_pool_15")
             net = tf.squeeze(net, [1, 2], name="SpatialSqueeze")  # 去掉维度为1的维[N, 1, 1, 1024] => [N,1024]
             self.logits = fc(net,self.num_classes,"fc_16",use_bias=True)
