@@ -39,7 +39,7 @@ def get_batch(filename,batch_size=10,num_threads=3,shuffle=False,min_after_deque
     image,label = read_tfrecord(filename)
 
     if min_after_dequeue is None:
-        min_after_dequeue = batch_size * 10
+        min_after_dequeue = batch_size * 5
     capacity = min_after_dequeue + 3 * batch_size
     if shuffle:
         img_batch,label_batch = tf.train.shuffle_batch([image,label],
@@ -53,6 +53,7 @@ def get_batch(filename,batch_size=10,num_threads=3,shuffle=False,min_after_deque
                                                capacity=capacity,
                                                num_threads=num_threads,
                                                allow_smaller_final_batch=False)
+    print("get the image...")
     return img_batch,label_batch
 
 def test_read_tfrecord(image,label):

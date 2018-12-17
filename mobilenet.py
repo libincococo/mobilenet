@@ -6,13 +6,16 @@ def create_variable(name,shape,initializer,dtype=tf.float32,trainable=True):
     return tf.get_variable(name,shape=shape,dtype=dtype,initializer=initializer,trainable=trainable)
 
 def conv2d(inputs,scope,num_filters,filter_size=1,strides=1):
-    inputs_shape = inputs.get_shape()
+    inputs_shape = inputs.get_shape().as_list()
     in_channels = inputs_shape[-1]
+    print("conv2d shape:")
+    print(inputs_shape)
 
     with tf.variable_scope(scope):
         filters = create_variable('filter',shape=[filter_size,filter_size,in_channels,num_filters],
                                   initializer=tf.truncated_normal_initializer(stddev=0.01))
         return tf.nn.conv2d(inputs,filters,strides=[1,strides,strides,1],padding="SAME")
+
 
 # 批规范化 归一化层 BN层 减均值除方差 batchnorm layer
 # s1 = W*x + b
@@ -22,6 +25,8 @@ def bacthnorm(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
     inputs_shape = inputs.get_shape().as_list() # 输出 形状尺寸
     params_shape = inputs_shape[-1:] # 输入参数的长度
     axis = list(range(len(inputs_shape) - 1))
+    print("the batch input:")
+    print(inputs_shape)
 
     with tf.variable_scope(scope):
         beta = create_variable("beta", params_shape,
@@ -46,6 +51,7 @@ def bacthnorm(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
     else:
         mean, variance = moving_mean, moving_variance
     return tf.nn.batch_normalization(inputs, mean, variance, beta, gamma, epsilon)
+
 
 def depthwise_conv2d(inputs,scope,filter_size=3,channel_multiplier=1,strides=1):
     inputs_shape = inputs.get_shape().as_list()  # 输入通道 形状尺寸 64*64* 512
@@ -143,8 +149,7 @@ class MobileNet(object):
         strides = 2 if downsample else 1  # 下采样 确定卷积步长
 
         with tf.variable_scope(scope):
-            dw_conv=depthwise_conv2d(inputs,'depthwise_conv',filter_size=3,
-                                     channel_multiplier=num_filters,strides=strides)
+            dw_conv=depthwise_conv2d(inputs,'depthwise_conv',filter_size=3,strides=strides)
             bn = bacthnorm(dw_conv,'dw_bn',is_training=self.is_training)
             relu = tf.nn.relu(bn,name='relu1')
             pw_conv=conv2d(relu,"pw",num_filters=num_filters)

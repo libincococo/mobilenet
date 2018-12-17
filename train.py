@@ -23,6 +23,8 @@ def train():
         img_batch, label_batch = get_batch("cifar10/cifar10_train.tfrecord", args.batch_size)
 
         mobilenet = MobileNet(img_batch,num_classes=args.num_classes)
+
+
         logits = mobilenet.logits
         pred = mobilenet.predictions
         testnet = mobilenet.tests
@@ -41,10 +43,11 @@ def train():
         correct_pred = tf.equal(preds,labels)
         acc = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
+
         # optimizer
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
-            train_op = tf.train.AdamOptimizer(learning_rate=0.001, beta1=args.beta1).minimize(total_loss)
+        #update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        #with tf.control_dependencies(update_ops):
+        train_op = tf.train.AdamOptimizer(learning_rate=0.001, beta1=args.beta1).minimize(loss)
 
         with tf.Session() as sess:
 
@@ -57,11 +60,10 @@ def train():
 
             for step in range(10000):
                 start_time = time.time()
-                sess.run(testnet)
-                print("time:%f"%(time.time()-start_time))
+
                 _,lr = sess.run([train_op,total_loss])
-                print("the loss is %f"%lr)
-                if step % 10 == 0:
+                #print("the loss is %f"%lr)
+                if step % 100 == 0:
                     _loss, _acc = sess.run([total_loss, acc])
 
                     print('global_step:{0}, time:{1:.3f}, lr:{2:.8f}, acc:{3:.6f}, loss:{4:.6f}'.format
