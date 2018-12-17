@@ -5,15 +5,18 @@ UPDATE_OPS_COLLECTION = "_update_ops_"
 def create_variable(name,shape,initializer,dtype=tf.float32,trainable=True):
     return tf.get_variable(name,shape=shape,dtype=dtype,initializer=initializer,trainable=trainable)
 
-def conv2d(inputs,scope,num_filters,filter_size=1,strides=1):
+def conv2d(inputs,scope,num_filters,filter_size=1,strides=1,weight_decay=0):
     inputs_shape = inputs.get_shape().as_list()
     in_channels = inputs_shape[-1]
-    print("conv2d shape:")
-    print(inputs_shape)
+    #print("conv2d shape:")
+    #print(inputs_shape)
 
     with tf.variable_scope(scope):
         filters = create_variable('filter',shape=[filter_size,filter_size,in_channels,num_filters],
                                   initializer=tf.truncated_normal_initializer(stddev=0.01))
+        if weight_decay != 0:
+            l2_reg = tf.contrib.layers.l2_regularizer(weight_decay)(filters)
+            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,l2_reg)
         return tf.nn.conv2d(inputs,filters,strides=[1,strides,strides,1],padding="SAME")
 
 
@@ -25,8 +28,8 @@ def bacthnorm(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
     inputs_shape = inputs.get_shape().as_list() # 输出 形状尺寸
     params_shape = inputs_shape[-1:] # 输入参数的长度
     axis = list(range(len(inputs_shape) - 1))
-    print("the batch input:")
-    print(inputs_shape)
+    #print("the batch input:")
+    #print(inputs_shape)
 
     with tf.variable_scope(scope):
         beta = create_variable("beta", params_shape,
@@ -53,13 +56,17 @@ def bacthnorm(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
     return tf.nn.batch_normalization(inputs, mean, variance, beta, gamma, epsilon)
 
 
-def depthwise_conv2d(inputs,scope,filter_size=3,channel_multiplier=1,strides=1):
+def depthwise_conv2d(inputs,scope,filter_size=3,channel_multiplier=1,strides=1,weight_decay=0):
     inputs_shape = inputs.get_shape().as_list()  # 输入通道 形状尺寸 64*64* 512
     in_channels = inputs_shape[-1]  # 输入通道数量 最后一个参数 512
 
     with tf.variable_scope(scope):
         filters = create_variable("filter",shape=[filter_size,filter_size,in_channels,channel_multiplier],
                                   initializer=tf.truncated_normal_initializer(stddev=0.01))
+        if weight_decay != 0:
+            l2_reg = tf.contrib.layers.l2_regularizer(weight_decay)(filters)
+            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,l2_reg)
+
         return tf.nn.depthwise_conv2d(inputs,filters,strides=[1,strides,strides,1],padding='SAME',rate=[1,1])
 
 def avg_pool(inputs,pool_size,scope):
@@ -68,13 +75,17 @@ def avg_pool(inputs,pool_size,scope):
                               strides=[1,pool_size,pool_size,1],padding='VALID')
 
 
-def fc(inputs,n_out,scope,use_bias=True):
+def fc(inputs,n_out,scope,use_bias=True,weight_decay=0):
     inputs_shape = inputs.get_shape().as_list()  # 输入通道 形状尺寸 64*64* 512
     in_channels = inputs_shape[-1]  # 输入通道数量 最后一个参数 512
 
     with tf.variable_scope(scope):
         weight = create_variable("weight",shape=[in_channels,n_out],
                                  initializer=tf.random_normal_initializer(stddev=0.01))
+        if weight_decay != 0:
+            l2_reg = tf.contrib.layers.l2_regularizer(weight_decay)(weight)
+            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES,l2_reg)
+
         bias = create_variable("bias", shape=[n_out, ],
                                initializer=tf.zeros_initializer())
         if use_bias:
@@ -93,7 +104,7 @@ class MobileNet(object):
     def build_model(self):
         with tf.variable_scope(self.scope):
             net = conv2d(self.inputs,"conv_1",round(32*self.width_multiplier),
-                         filter_size=3,strides=2)
+                         filter_size=3,strides=2,weight_decay=1e-4)
 
             net = bacthnorm(net,"conv_1/bn",is_training=self.is_training)
             net = tf.nn.relu(net,name="conv_1/relu")
@@ -140,7 +151,7 @@ class MobileNet(object):
             self.tests = net
             net = avg_pool(net,7,"avg_pool_15")
             net = tf.squeeze(net, [1, 2], name="SpatialSqueeze")  # 去掉维度为1的维[N, 1, 1, 1024] => [N,1024]
-            self.logits = fc(net,self.num_classes,"fc_16",use_bias=True)
+            self.logits = fc(net,self.num_classes,"fc_16",use_bias=True,weight_decay=1e-4)
             self.predictions = tf.nn.softmax(self.logits,name="softmax_17")
 
 
