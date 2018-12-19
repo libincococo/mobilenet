@@ -16,7 +16,8 @@ def load(sess, saver, checkpoint_dir):
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
     if ckpt and ckpt.model_checkpoint_path:
         ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-        saver.restore(sess, os.path.join(checkpoint_dir, ckpt_name))
+        savefile = os.path.join(checkpoint_dir, ckpt_name)
+        saver.restore(sess, savefile)
         counter = int(next(re.finditer("(\d+)(?!.*\d)", ckpt_name)).group(0))
         print("[*] Success to read {}".format(ckpt_name))
         return True, counter
@@ -36,11 +37,9 @@ def train():
         #glob_pattern = os.path.join(args.dataset_dir,"*_train.tfrecord")
         #tfrecords_list = glob.glob(glob_pattern)
         #filename_queue = tf.train.string_input_producer(tfrecords_list, num_epochs=None)
-        img_batch, label_batch = get_batch("cifar10/cifar10_train.tfrecord", args.batch_size)
+        img_batch, label_batch = get_batch("cifar10/cifar10_train.tfrecord", args.batch_size,shuffle=True)
 
         mobilenet = MobileNet(img_batch,num_classes=args.num_classes)
-
-
         logits = mobilenet.logits
         pred = mobilenet.predictions
 
@@ -84,35 +83,45 @@ def train():
         tf.summary.scalar('learning_rate', lr)
         summary_op = tf.summary.merge_all()
 
-        saver = tf.train.Saver()
-        _step = 0
-
         with tf.Session() as sess:
 
             # summary writer
             writer = tf.summary.FileWriter(args.logs_dir, sess.graph)
 
-            _,_step = load(sess,saver,args.checkpoint_dir)
-            print("the start run init")
             sess.run(tf.global_variables_initializer())
-            print("the end  run init")
+
+            saver = tf.train.Saver()
+            _, _step = load(sess, saver, args.checkpoint_dir)
 
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
             for step in range(_step+1,max_steps+1):
+
                 start_time = time.time()
 
                 _,_lr = sess.run([train_op,lr])
-                #print("the loss is %f"%lr)
+
                 if step % args.num_log == 0:
                     summ,_loss, _acc = sess.run([summary_op,total_loss, acc])
                     writer.add_summary(summ, step)
-                    print('global_step:{0}, time:{1:.3f}, lr:{2:.8f}, acc:{3:.6f}, loss:{4:.6f}'.format
-                        (step, time.time() - start_time, _lr, _acc, _loss))
+                    print('number to eval:{0}, time:{1:.3f}, lr:{2:.8f}, acc:{3:.6f}, loss:{4:.6f}'.format
+                        (step*args.batch_size, time.time() - start_time, _lr, _acc, _loss))
 
                 if step % args.num_log == 0:
                     save_path = saver.save(sess, os.path.join(args.checkpoint_dir, args.model_name), global_step=step)
+
+                if step % 100 == 0:
+                    totalloss = 0.0
+                    totalacc = 0.0
+                    for e_step in range(200):
+                        _loss, _acc = sess.run([total_loss, acc])
+                        totalloss = totalloss+_loss
+                        totalacc = totalacc+_acc
+
+                    print('global_step:%g, time:%g, t acc:%g, t loss:%g' %
+                          ((e_step + 1) * args.batch_size, time.time() - start_time, totalacc / (e_step + 1),
+                           totalloss / (e_step + 1)))
 
             tf.train.write_graph(sess.graph_def, args.checkpoint_dir, args.model_name + '.pb')
             save_path = saver.save(sess, os.path.join(args.checkpoint_dir, args.model_name), global_step=max_steps)
@@ -123,4 +132,3 @@ def train():
 
 if __name__ == "__main__":
     train()
-    pass

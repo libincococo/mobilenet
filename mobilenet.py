@@ -20,16 +20,22 @@ def conv2d(inputs,scope,num_filters,filter_size=1,strides=1,weight_decay=0):
         return tf.nn.conv2d(inputs,filters,strides=[1,strides,strides,1],padding="SAME")
 
 
+
+def bacthnorm(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
+
+    outputs = tf.layers.batch_normalization(inputs,momentum=momentum,epsilon=epsilon,training=is_training)
+    return outputs
+
 # 批规范化 归一化层 BN层 减均值除方差 batchnorm layer
 # s1 = W*x + b
 # s2 = (s1 - s1均值)/s1方差
 # s3 = beta * s2 + gamma
-def bacthnorm(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
+def bacthnorm_old(inputs, scope, epsilon=1e-05, momentum=0.99, is_training=True):
+
+
     inputs_shape = inputs.get_shape().as_list() # 输出 形状尺寸
     params_shape = inputs_shape[-1:] # 输入参数的长度
     axis = list(range(len(inputs_shape) - 1))
-    #print("the batch input:")
-    #print(inputs_shape)
 
     with tf.variable_scope(scope):
         beta = create_variable("beta", params_shape,
@@ -93,12 +99,13 @@ def fc(inputs,n_out,scope,use_bias=True,weight_decay=0):
         return tf.matmul(inputs,weight)
 
 class MobileNet(object):
-    def __init__(self,inputs,num_classes=100,is_training=True,width_multipliter=1,scope='MobileNet'):
+    def __init__(self,inputs,num_classes=10,is_training=True,width_multipliter=1,is_relu6=False,scope='MobileNet'):
         self.inputs = inputs
         self.num_classes=num_classes
         self.is_training = is_training
         self.width_multiplier = width_multipliter
         self.scope = scope
+        self.is_relu6=is_relu6
         self.build_model()
 
     def build_model(self):
@@ -107,46 +114,49 @@ class MobileNet(object):
                          filter_size=3,strides=2,weight_decay=1e-4)
 
             net = bacthnorm(net,"conv_1/bn",is_training=self.is_training)
-            net = tf.nn.relu(net,name="conv_1/relu")
+            if self.is_relu6:
+                net=tf.nn.relu6(net,name="conv_1/relu")
+            else:
+                net = tf.nn.relu(net,name="conv_1/relu")
 
-            net = self._depthwise_separable_conv2d(net, 64, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 64, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_2")  # ->[N, 112, 112, 64]
             ###################### b.  MobileNet 核心模块 128输出 卷积步长2 尺寸减半
-            net = self._depthwise_separable_conv2d(net, 128, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 128, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_3", downsample=True)  # ->[N, 56, 56, 128]
 
             ###################### c.  MobileNet 核心模块 128输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 128, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 128, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_4")  # ->[N, 56, 56, 128]
             ###################### d.  MobileNet 核心模块 256 输出 卷积步长2 尺寸减半
-            net = self._depthwise_separable_conv2d(net, 256, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 256, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_5", downsample=True)  # ->[N, 28, 28, 256]
             ###################### e.  MobileNet 核心模块 256输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 256, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 256, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_6")  # ->[N, 28, 28, 256]
             ###################### f.  MobileNet 核心模块 512 输出 卷积步长2 尺寸减半
-            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_7", downsample=True)  # ->[N, 14, 14, 512]
             ###################### g.  MobileNet 核心模块 512输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_8")  # ->[N, 14, 14, 512]
             ###################### h.  MobileNet 核心模块 512输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_9")  # ->[N, 14, 14, 512]
             ###################### i.  MobileNet 核心模块 512输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_10")  # ->[N, 14, 14, 512]
             ###################### j.  MobileNet 核心模块 512输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_11")  # ->[N, 14, 14, 512]
             ###################### k.  MobileNet 核心模块 512输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 512, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_12")  # ->[N, 14, 14, 512]
             ###################### l.  MobileNet 核心模块 1024输出 卷积步长2 尺寸减半
-            net = self._depthwise_separable_conv2d(net, 1024, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 1024, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_13", downsample=True)  # ->[N, 7, 7, 1024]
             ###################### m.  MobileNet 核心模块 1024输出 卷积步长1 尺寸不变
-            net = self._depthwise_separable_conv2d(net, 1024, self.width_multiplier,
+            net = self._depthwise_separable_conv2d(net, 1024, self.width_multiplier,is_relu6=self.is_relu6,
                                                    "ds_conv_14")  # ->[N, 7, 7, 1024]
             self.tests = net
             net = avg_pool(net,7,"avg_pool_15")
@@ -155,16 +165,21 @@ class MobileNet(object):
             self.predictions = tf.nn.softmax(self.logits,name="softmax_17")
 
 
-    def _depthwise_separable_conv2d(self,inputs,num_filters,width_multiplier,scope,downsample=False):
+    def _depthwise_separable_conv2d(self,inputs,num_filters,width_multiplier,is_relu6=False,scope,downsample=False):
         num_filters = round(num_filters * width_multiplier)  # 输出通道数量
         strides = 2 if downsample else 1  # 下采样 确定卷积步长
 
         with tf.variable_scope(scope):
             dw_conv=depthwise_conv2d(inputs,'depthwise_conv',filter_size=3,strides=strides)
             bn = bacthnorm(dw_conv,'dw_bn',is_training=self.is_training)
-            relu = tf.nn.relu(bn,name='relu1')
+            if is_relu6:
+                relu = tf.nn.relu6(bn, name='relu1')
+            else:
+                relu = tf.nn.relu(bn,name='relu1')
             pw_conv=conv2d(relu,"pw",num_filters=num_filters)
             bn = bacthnorm(pw_conv,"pw_bn",is_training=self.is_training)
+            if is_relu6:
+                return tf.nn.relu6(bn,name="relu2")
             return tf.nn.relu(bn,name="relu2")
 
 if __name__ == "__main__":

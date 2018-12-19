@@ -5,6 +5,7 @@ import PIL
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
+import random
 
 NUMS_BATCH = 10
 
@@ -12,6 +13,19 @@ IMAGE_W = 32
 IMAGE_H = 32
 IMAGE_C = 3
 
+def resize_image(image):
+    image = tf.image.random_flip_left_right(image)
+    image = tf.image.random_flip_up_down(image)
+    return image
+
+def crop_image(image,hight,width,radio=1.2):
+    r = random.randint(1,3)
+    if r == 1:
+        radio = random.uniform(1,radio)
+        image = tf.image.resize_images(image, [int(hight*radio), int(width*radio)], method=1)
+        image = tf.image.resize_image_with_crop_or_pad(image,hight,width)
+
+    return image
 
 def distort_color(image, color_ordering = 0):
     if color_ordering == 0:
@@ -29,12 +43,12 @@ def distort_color(image, color_ordering = 0):
         image = tf.image.random_saturation(image, lower = 0.5, upper = 1.5)
         image = tf.image.random_brightness(image, max_delta = 32. / 255.)
         image = tf.image.random_contrast(image, lower = 0.5, upper = 1.5)
-    #return tf.clip_by_value(image, 0.0, 1.0)
+    #image = tf.clip_by_value(image, 0.0, 1.0)
     return  image
 
 
 
-def read_tfrecord(filename):
+def read_tfrecord(filename,height,width,num_classes=10,is_train=True):
     filename_queue = tf.train.string_input_producer([filename])
     reader = tf.TFRecordReader()
     _,serialized_example = reader.read(filename_queue)
@@ -49,18 +63,22 @@ def read_tfrecord(filename):
                                        })
 
     imagef,labelf,heightf,widthf = features['image/encoded'],features['image/class/label'],features['image/height'],features['image/width']
-    heightf = tf.cast(heightf,tf.int32)
+
     image_png = tf.image.decode_png(imagef)
     image_png = tf.reshape(image_png,[IMAGE_H,IMAGE_W,3])
-    image_png = tf.image.resize_images(image_png,[224,224],method=3)
-    image_png = distort_color(image_png,np.random.randint(2))
-    image_png = tf.clip_by_value(image_png, 0.0, 1.0)
+    image_png = tf.image.resize_images(image_png,[height,width],method=3)
+    if is_train:
+        image_png = distort_color(image_png,np.random.randint(2))
+        image_png = resize_image(image_png)
+        image_png = crop_image(image_png,hight=height,width=width)
+    #image_png = tf.clip_by_value(image_png, 0.0, 1.0)
+    #image_png = tf.cast(image_png, tf.uint8)
     label = tf.cast(labelf,tf.int32)
-    label = tf.one_hot(label,20,1,0)
+    label = tf.one_hot(label,num_classes,1,0)
     return image_png,label
 
-def get_batch(filename,batch_size=10,num_threads=3,shuffle=False,min_after_dequeue=None):
-    image,label = read_tfrecord(filename)
+def get_batch(filename,batch_size=10,num_threads=3,shuffle=False,min_after_dequeue=None,height=224,width=224,num_classes=10,is_train=True):
+    image,label = read_tfrecord(filename,height=height,width=width,num_classes=num_classes,is_train=is_train)
 
     if min_after_dequeue is None:
         min_after_dequeue = batch_size * 5
@@ -87,8 +105,9 @@ def test_read_tfrecord(image,label):
         threads = tf.train.start_queue_runners(sess=sess,coord=coord)
         for i in range(10):
             image_d,label_r = sess.run([image,label])
-
-            plt.imshow(image_d[0])
+            #imagess = tf.cast(image_d[0],tf.uint8)
+            imagess = image_d[0]
+            plt.imshow(imagess)
             plt.show()
 
 
@@ -104,5 +123,5 @@ def test_read_tfrecord(image,label):
 
 if __name__ == "__main__":
     #image,label = read_tfrecord("cifar10/cifar10_train.tfrecord")
-    image, label = get_batch("cifar10/cifar10_train.tfrecord",shuffle=False)
+    image, label = get_batch("cifar10/cifar10_train.tfrecord",shuffle=False,batch_size=1)
     test_read_tfrecord(image,label)
