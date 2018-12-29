@@ -39,15 +39,17 @@ def train():
         #glob_pattern = os.path.join(args.dataset_dir,"*_train.tfrecord")
         #tfrecords_list = glob.glob(glob_pattern)
         #filename_queue = tf.train.string_input_producer(tfrecords_list, num_epochs=None)
-        train_img_batch, train_label_batch = get_batch("cifar10/cifar10_train.tfrecord",
+        train_img_batch, train_label_batch = get_batch("guesture/guesture_train.tfrecord",
                                            args.batch_size,
                                            shuffle=True,
-                                           is_train=True)
+                                           is_train=True,
+                                           num_classes=args.num_classes)
 
-        test_img_batch, test_label_batch = get_batch("cifar10/cifar10_test.tfrecord",
+        test_img_batch, test_label_batch = get_batch("guesture/guesture_validation.tfrecord",
                                                        args.batch_size,
                                                        shuffle=False,
-                                                       is_train=False)
+                                                       is_train=False,
+                                                       num_classes=args.num_classes)
 
         input_x = tf.placeholder(tf.float32,[None,args.height,args.width,3],name="input-x")
         input_y = tf.placeholder(tf.uint8,[None,args.num_classes],name="input-y")

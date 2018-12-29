@@ -7,10 +7,12 @@ import cv2
 import numpy as np
 import random
 
+import tensorflow.contrib.eager as tfe
+
+#tf.enable_eager_execution()
 NUMS_BATCH = 10
 
-IMAGE_W = 32
-IMAGE_H = 32
+
 IMAGE_C = 3
 
 def resize_image(image):
@@ -65,7 +67,7 @@ def read_tfrecord(filename,height,width,num_classes=10,is_train=True):
     imagef,labelf,heightf,widthf = features['image/encoded'],features['image/class/label'],features['image/height'],features['image/width']
 
     image_png = tf.image.decode_png(imagef)
-    image_png = tf.reshape(image_png,[IMAGE_H,IMAGE_W,3])
+    image_png = tf.reshape(image_png,[heightf,widthf,3])
     image_png = tf.image.resize_images(image_png,[height,width],method=3)
     if is_train:
         image_png = distort_color(image_png,np.random.randint(2))
@@ -94,7 +96,7 @@ def get_batch(filename,batch_size=10,num_threads=3,shuffle=False,min_after_deque
                                                batch_size=batch_size,
                                                capacity=capacity,
                                                num_threads=num_threads,
-                                               allow_smaller_final_batch=False)
+                                               allow_smaller_final_batch=True)
     print("get the image...")
     return img_batch,label_batch
 
@@ -105,7 +107,7 @@ def test_read_tfrecord(image,label):
         threads = tf.train.start_queue_runners(sess=sess,coord=coord)
         for i in range(10):
             image_d,label_r = sess.run([image,label])
-            #imagess = tf.cast(image_d[0],tf.uint8)
+            imagess = tf.cast(image_d[0],tf.uint8)
             imagess = image_d[0]
             plt.imshow(imagess)
             plt.show()
@@ -122,6 +124,7 @@ def test_read_tfrecord(image,label):
         coord.join()
 
 if __name__ == "__main__":
-    #image,label = read_tfrecord("cifar10/cifar10_train.tfrecord")
-    image, label = get_batch("cifar10/cifar10_train.tfrecord",shuffle=False,batch_size=1)
+    #image,label = read_tfrecord("./guesture/guesture_train.tfrecord",height=224,width=224,num_classes=2,is_train=False)
+    #image, label = read_tfrecord("./cifar10/cifar10_train.tfrecord", height=224, width=224, num_classes=10,is_train=False)
+    image, label = get_batch("./guesture/guesture_train.tfrecord",shuffle=True,batch_size=1,num_classes=2)
     test_read_tfrecord(image,label)
