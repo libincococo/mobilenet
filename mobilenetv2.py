@@ -47,8 +47,8 @@ class MobileNetV2(object):
             net = res_block(net, out_channels=320, width_multiplier=6, num_strides=1, scope="bottleneck_8",shortcut=False)
 
             net = con2d_1x1(net,num_filters=1280,is_training=self.is_training,scope="con2d_1x1_9_1")
-            net = bacthnorm(net,scope="bn_9_2")
-            net = relu(net,name="relu_9_")
+            #net = bacthnorm(net,scope="bn_9_2")
+            net = relu(net,name="relu_9_2")
             
             net = avg_pool(net, 7, "avg_pool_10")
 
