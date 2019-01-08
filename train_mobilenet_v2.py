@@ -39,13 +39,13 @@ def train():
         #glob_pattern = os.path.join(args.dataset_dir,"*_train.tfrecord")
         #tfrecords_list = glob.glob(glob_pattern)
         #filename_queue = tf.train.string_input_producer(tfrecords_list, num_epochs=None)
-        train_img_batch, train_label_batch = get_batch("guesture/guesture_train.tfrecord",
+        train_img_batch, train_label_batch = get_batch("gesture/gesture_train.tfrecord",
                                            args.batch_size,
                                            shuffle=True,
                                            is_train=True,
                                            num_classes=args.num_classes)
 
-        test_img_batch, test_label_batch = get_batch("guesture/guesture_validation.tfrecord",
+        test_img_batch, test_label_batch = get_batch("gesture/gesture_validation.tfrecord",
                                                        args.batch_size,
                                                        shuffle=False,
                                                        is_train=False,
@@ -91,6 +91,7 @@ def train():
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             train_op = tf.train.AdamOptimizer(learning_rate=lr, beta1=args.beta1).minimize(loss,global_step=global_step)
+            #train_op = tf.train.RMSPropOptimizer(learning_rate=lr, decay=0.00004,momentum=0.999).minimize(loss,global_step=global_step)
 
         max_steps = int(args.num_samples/int(args.batch_size)*int(args.epoch))
 

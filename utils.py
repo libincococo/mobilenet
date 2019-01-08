@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import cv2
 import numpy as np
 import random
-
+from preprocess import *
 import tensorflow.contrib.eager as tfe
 
 #tf.enable_eager_execution()

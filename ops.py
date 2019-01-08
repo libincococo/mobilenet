@@ -106,7 +106,7 @@ def relu(inputs,is_relu6=True,name="relu"):
 
 def con2d_1x1(inputs,num_filters,is_training=True,scope="con2d_1x1"):
     with tf.variable_scope(scope):
-        linear_conv = conv2d(inputs, "linear_conv", num_filters=num_filters)
+        linear_conv = conv2d(inputs, "conv2d", num_filters=num_filters)
         linear_bn = bacthnorm(linear_conv, "linear_bn", is_training=is_training)
         return linear_bn
 
@@ -116,12 +116,16 @@ def res_block(inputs,out_channels,width_multiplier,num_strides=1,is_relu6=False,
     in_channels = inputs_shape[-1]  # 输入通道数量 最后一个参数 512
 
     num_filters = round(in_channels * width_multiplier)  # 输出通道数量
-    with tf.variable_scope(scope):
+    with tf.variable_scope(scope,reuse=tf.AUTO_REUSE ):
         pw_conv = conv2d(inputs, "dw_conv", num_filters=num_filters)
         bn = bacthnorm(pw_conv, "dw_bn", is_training=is_training)
-        relus = relu(bn,name="dw_relu6")
+        #bn = con2d_1x1(inputs, num_filters, is_training=is_training)
+        relus = relu(bn,name="dw_relu1")
 
         dc = depthwise_conv2d(relus,scope,strides=num_strides,weight_decay=1e-5)
+        dc = bacthnorm(dc, "linear_bn", is_training=is_training)
+        dc = relu(dc, name="dw_relu2")
+
 
         net = con2d_1x1(dc,out_channels,is_training=is_training)
 
